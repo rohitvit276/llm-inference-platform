@@ -1,0 +1,16 @@
+# Lean kube-prometheus-stack config for a lab cluster.
+grafana:
+  adminPassword: admin # lab only — change or use a secret for anything real
+  service:
+    type: ClusterIP # access via `kubectl port-forward`
+prometheus:
+  prometheusSpec:
+    retention: 2d
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+    # Pick up ServiceMonitors from all namespaces/releases
+    serviceMonitorSelectorNilUsesHelmValues: false
+alertmanager:
+  enabled: false # keep the lab footprint small

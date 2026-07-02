@@ -1,0 +1,50 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  id-token: write # OIDC for AWS, no long-lived keys
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+      - name: Terraform fmt & validate
+        working-directory: terraform
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false
+          terraform validate
+
+      - uses: azure/setup-helm@v4
+      - name: Helm lint
+        run: helm lint deploy/helm/llm-platform --set gateway.image=dummy:ci
+
+      - name: Gateway image builds
+        run: docker build -t gateway:ci app/gateway
+
+  # Pushes to ECR only when AWS_ROLE_ARN is configured as a repo variable.
+  push-image:
+    if: github.ref == 'refs/heads/main' && vars.AWS_ROLE_ARN != ''
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ap-south-1
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+      - name: Build and push
+        run: |
+          IMAGE=${{ steps.ecr.outputs.registry }}/llm-platform/gateway:${GITHUB_SHA::7}
+          docker build -t "$IMAGE" app/gateway
+          docker push "$IMAGE"

@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-model
+  labels:
+    app: llm-model
+spec:
+  replicas: {{ .Values.model.replicas }}
+  selector:
+    matchLabels:
+      app: llm-model
+  template:
+    metadata:
+      labels:
+        app: llm-model
+    spec:
+      initContainers:
+        - name: fetch-model
+          image: curlimages/curl:8.11.1
+          command: ["sh", "-c"]
+          args:
+            - >
+              test -f /models/model.gguf ||
+              curl -fL --retry 3 -o /models/model.gguf "{{ .Values.model.ggufUrl }}"
+          volumeMounts:
+            - name: models
+              mountPath: /models
+      containers:
+        - name: llama-cpp
+          image: {{ .Values.model.image }}
+          args:
+            - "-m"
+            - "/models/model.gguf"
+            - "--host"
+            - "0.0.0.0"
+            - "--port"
+            - "8080"
+            - "--ctx-size"
+            - "{{ .Values.model.contextSize }}"
+            - "--parallel"
+            - "{{ .Values.model.parallelSlots }}"
+            - "--metrics"
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.model.resources | nindent 12 }}
+          volumeMounts:
+            - name: models
+              mountPath: /models
+      volumes:
+        - name: models
+          emptyDir: {}

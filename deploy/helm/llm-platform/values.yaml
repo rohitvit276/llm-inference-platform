@@ -1,0 +1,42 @@
+model:
+  image: ghcr.io/ggml-org/llama.cpp:server
+  # Small instruct model quantized to ~400MB; runs well on 2 vCPU.
+  ggufUrl: https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf
+  contextSize: 2048
+  parallelSlots: 2
+  replicas: 1
+  resources:
+    requests:
+      cpu: "1"
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+gateway:
+  image: ""  # set to <ecr-url>:<tag> at deploy time
+  replicas: 1
+  apiKeys: "dev-key"  # comma-separated; override via --set-string
+  rateLimitPerMinute: 60
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  service:
+    type: LoadBalancer  # NLB gives a public endpoint for load testing
+
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 4
+  # Scale model replicas when sustained request rate per replica exceeds this.
+  requestsPerSecondPerReplica: "2"
+  prometheusAddress: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
+
+monitoring:
+  serviceMonitor:
+    enabled: true
+    release: kube-prometheus-stack
