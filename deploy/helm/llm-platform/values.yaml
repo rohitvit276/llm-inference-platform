@@ -7,7 +7,7 @@ model:
   replicas: 1
   resources:
     requests:
-      cpu: "1"
+      cpu: 750m  # ~2 replicas per 2-vCPU node; limit still allows bursting
       memory: 1Gi
     limits:
       cpu: "2"
@@ -27,13 +27,17 @@ gateway:
       memory: 256Mi
   service:
     type: LoadBalancer  # NLB gives a public endpoint for load testing
+    # Not 80: some ISPs transparently proxy port-80 HTTP and kill responses
+    # slower than ~15s, which breaks long LLM generations.
+    port: 8080
 
 autoscaling:
   enabled: true
   minReplicas: 1
   maxReplicas: 4
-  # Scale model replicas when sustained request rate per replica exceeds this.
-  requestsPerSecondPerReplica: "2"
+  # Scale out when average in-flight requests (processing + queued) per
+  # replica exceeds the parallel slot count, i.e. requests are queueing.
+  inflightPerReplica: "2"
   prometheusAddress: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
 
 monitoring:

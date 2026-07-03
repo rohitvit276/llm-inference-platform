@@ -13,6 +13,9 @@ spec:
     - type: prometheus
       metadata:
         serverAddress: {{ .Values.autoscaling.prometheusAddress }}
-        query: sum(rate(gateway_requests_total{path="/v1/chat/completions"}[1m]))
-        threshold: {{ .Values.autoscaling.requestsPerSecondPerReplica | quote }}
+        # In-flight requests (busy slots + queued) is the saturation signal.
+        # Request rate can't work here: a saturated model caps throughput, so
+        # the rate never rises above the threshold no matter how bad latency gets.
+        query: sum(llamacpp:requests_processing) + sum(llamacpp:requests_deferred)
+        threshold: {{ .Values.autoscaling.inflightPerReplica | quote }}
 {{- end }}
