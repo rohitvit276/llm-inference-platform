@@ -60,6 +60,14 @@ make grafana       # port-forward dashboards
 make down          # destroy everything — end of session!
 ```
 
+CI: the `validate` job runs on every push. To enable image pushes from CI,
+set the repo variable `AWS_ROLE_ARN` to the `github_actions_role_arn`
+terraform output — the role's trust policy is pinned to this repo's `main`
+branch via OIDC, so no AWS keys are ever stored in GitHub.
+
+```bash
+```
+
 Smoke test:
 
 ```bash

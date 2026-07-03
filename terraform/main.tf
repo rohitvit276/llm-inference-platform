@@ -36,9 +36,9 @@ module "eks" {
   subnet_ids = module.vpc.public_subnets
 
   cluster_addons = {
-    coredns    = {}
-    kube-proxy = {}
-    vpc-cni    = {}
+    coredns        = {}
+    kube-proxy     = {}
+    vpc-cni        = {}
     metrics-server = {}
   }
 
