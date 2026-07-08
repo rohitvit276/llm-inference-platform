@@ -9,22 +9,33 @@ FastAPI gateway · Prometheus + Grafana · KEDA · k6 · GitHub Actions (OIDC)
 
 ## Architecture
 
-```
-                        ┌──────────────────────── EKS (spot nodes) ───────────────────────┐
-                        │                                                                  │
-  k6 load test ──► NLB ─┼─► llm-gateway (FastAPI)          llm-model (llama.cpp server)   │
-                        │     · bearer-token auth     ──►    · OpenAI-compatible API      │
-                        │     · rate limiting                · Qwen2.5-0.5B GGUF, CPU     │
-                        │     · /metrics                     · /metrics (tokens/s, slots) │
-                        │            │                              ▲                     │
-                        │            ▼                              │ scales replicas     │
-                        │      Prometheus ◄── ServiceMonitors ── KEDA (in-flight-requests │
-                        │            │                             trigger via PromQL)    │
-                        │            ▼                                                    │
-                        │        Grafana (latency p95, tokens/sec, replica count)         │
-                        └──────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    k6["k6 load test / any OpenAI client"] -->|"HTTP :8080 · bearer token"| nlb["AWS NLB"]
+    nlb --> gw
 
-  GitHub Actions ── OIDC (no stored keys) ──► ECR ──► Helm deploy
+    subgraph eks["Amazon EKS — spot nodes"]
+        gw["llm-gateway · FastAPI<br/>bearer auth · rate limiting · /metrics"]
+        model["llm-model · llama.cpp server<br/>OpenAI-compatible · Qwen2.5-0.5B Q4_K_M · /metrics"]
+        prom["Prometheus"]
+        graf["Grafana<br/>p95 latency · tokens/s · replica count"]
+        keda["KEDA"]
+
+        gw -->|"/v1/chat/completions"| model
+        prom -.->|"scrape via ServiceMonitor"| gw
+        prom -.->|"scrape via ServiceMonitor"| model
+        prom --> graf
+        keda -->|"PromQL: in-flight requests<br/>(processing + deferred)"| prom
+        keda ==>|"scales 1→N replicas"| model
+    end
+
+    subgraph cicd["CI/CD & IaC"]
+        gha["GitHub Actions"] -->|"OIDC · no stored AWS keys"| ecr["Amazon ECR"]
+        tf["Terraform<br/>VPC · EKS · ECR · budget alarm"]
+    end
+
+    ecr -.->|"image pull"| gw
+    tf -.->|"provisions"| eks
 ```
 
 ## Design decisions (the interesting bits)
@@ -64,9 +75,6 @@ CI: the `validate` job runs on every push. To enable image pushes from CI,
 set the repo variable `AWS_ROLE_ARN` to the `github_actions_role_arn`
 terraform output — the role's trust policy is pinned to this repo's `main`
 branch via OIDC, so no AWS keys are ever stored in GitHub.
-
-```bash
-```
 
 Smoke test:
 
