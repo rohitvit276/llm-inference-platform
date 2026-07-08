@@ -93,6 +93,14 @@ k6 ramps 0→8 virtual users over 4 minutes, holds, then ramps down
 
 *(chart generated from Prometheus range queries over the run)*
 
+![Grafana dashboard during the load test](docs/img/grafana-llm-platform.png)
+
+*(live Grafana view of the same story — replicas stepping 1→4 as the queue
+builds, p95 peaking then recovering as capacity lands, token throughput
+tripling, and scale-in beginning once the queue drains. Dashboard JSON is
+committed at `monitoring/dashboards/llm-platform.json` — import it via the
+Grafana UI or API.)*
+
 | | 1 replica, rate trigger | 1→4 replicas, in-flight trigger |
 |---|---|---|
 | requests completed | 135 | **195 (+44%)** |
